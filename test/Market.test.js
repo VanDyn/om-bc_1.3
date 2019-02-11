@@ -48,17 +48,80 @@ beforeEach(async () => {
 });
 
 describe('Market', () => {
-  it('deploys market and contract', () => {
+  it('deploys market', () => {
     assert.ok(market.options.address);
-    assert.ok(contract.options.address);
   });
   it('allows participants to join the market', async () => {
     const participant = await market.methods.Participants('0').call();
     assert.equal(accounts[0], participant.agentAcc);
   });
-  it('allows participants to retrieve contract address', async () => {
-    const conAdd = await market.methods.getContractAddress(accounts[0]).call();
+  it('Only allows partcipants of market to retreive contract details', async () => {
+    let err = null;
+    try {
+      await market.methods.getContractAddress(accounts[3]).send({
+        from: accounts[3],
+        gas: '1000000'
+      });
+    } catch (error) {
+      err = error;
+    }
+    assert.ok(err instanceof Error);
+    const conAdd = await market.methods.getContractAddress(accounts[0]).send({
+      from: accounts[0],
+      gas: '1000000'
+    });
     assert.ok(conAdd);
   });
-  
-})
+
+});
+
+//Test Contract contract
+describe('Contract', () => {
+  it('deploys a contract', () => {
+    assert.ok(contract.options.address);
+  });
+  it('does not let owner bid on own contract', async () => {
+
+    let err = null;
+    try {
+    await contract.methods.submitBid('2').send({
+      from: accounts[0],
+      gas: '1000000'
+    });
+  } catch (error) {
+    err = error;
+  }
+  // check error is thrown
+    assert.ok(err instanceof Error);
+  });
+  it('allows accounts to submit bids and accepts lowest', async () => {
+    await contract.methods.submitBid('2').send({
+      from: accounts[1],
+      gas: '1000000'
+    });
+    await contract.methods.submitBid('1').send({
+      from: accounts[2],
+      gas: '1000000'
+    });
+    const lowestBid = await contract.methods.lowestBid().call();
+    assert.equal('1', lowestBid);
+    });
+
+    it('only allows the owner to end the bidding', async () => {
+      let err = null;
+      try {
+      await contract.methods.auctionEnd().send({
+        from: accounts[1],
+        gas: '1000000'
+      });
+    } catch (error) {
+      err = error;
+    }
+    assert.ok(err instanceof Error);
+    await contract.methods.auctionEnd().send({
+      from: accounts[0],
+      gas: '1000000'
+    });
+    assert.equal(await contract.methods.ended().call(), true);
+    });
+});

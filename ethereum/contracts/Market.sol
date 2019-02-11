@@ -32,9 +32,16 @@ contract Market {
     }
 
     function getContractAddress(address _contractOwner) view public returns (address){
-        return liveContracts[_contractOwner];
+      //Make sure agent has joined the market
+      bool isParticipant = false;
+      for(uint i=0; i < Participants.length; i++){
+          if(Participants[i].agentAcc == msg.sender){
+              isParticipant = true;
+          }
+      }
+      require(isParticipant);
+      return liveContracts[_contractOwner];
     }
-
 }
 
 
@@ -50,7 +57,7 @@ contract Contract {
     address public lowestBidder;
     mapping(address=>uint) submittedBids;
 
-    bool ended;
+    bool public ended;
 
     address public Owner;
     mapping (address => contractStructure) private contracts;
@@ -71,19 +78,19 @@ contract Contract {
         return (contracts[Owner].x, contracts[Owner].y, contracts[Owner].z);
     }
 
-    function submitBid() public payable {
+    function submitBid(uint v) public {
 
         //make sure bid beats current lowest
-        if(lowestBid > 0) { require(msg.value < lowestBid); }
+        if(lowestBid > 0) { require(v < lowestBid); }
         //make sure bid is greater than 0
-        require(msg.value > 0);
+        require(v > 0);
         //make sure owner doesn't bid on own contract
         require(msg.sender != Owner, "Owner cannot bid on contract");
         require(!ended, "Contract already awarded....");
 
-        submittedBids[msg.sender] = msg.value;
+        submittedBids[msg.sender] = v;
 
-        lowestBid = msg.value;
+        lowestBid = v;
         lowestBidder = msg.sender;
         emit newLowestBid(lowestBidder, lowestBid);
 
@@ -92,6 +99,7 @@ contract Contract {
     function auctionEnd() public {
         //set this to only be called by owner
         //setup a minimum live time for contract
+        require(msg.sender == Owner);
         require(!ended, "Contract already awarded....");
 
         ended = true;

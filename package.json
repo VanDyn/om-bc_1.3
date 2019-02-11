@@ -1,7 +1,7 @@
 {
   "name": "om-bc_1.3",
   "version": "1.0.0",
-  "description": "",
+  "description": "Open market economy for MRS - most recent version",
   "main": "index.js",
   "scripts": {
     "test": "mocha"
@@ -14,5 +14,17 @@
     "mocha": "^5.2.0",
     "solc": "^0.4.22",
     "web3": "^1.0.0-beta.35"
-  }
+  },
+  "directories": {
+    "test": "test"
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/VanDyn/om-bc_1.3.git"
+  },
+  "bugs": {
+    "url": "https://github.com/VanDyn/om-bc_1.3/issues"
+  },
+  "homepage": "https://github.com/VanDyn/om-bc_1.3#readme"
 }
