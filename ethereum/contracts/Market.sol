@@ -6,8 +6,17 @@ contract Market {
         string name;
     }
 
+    struct Contractor {
+      address contractAdd;
+      address contractor;
+      bool status;
+      bool exists;
+    }
+
     Participant[] public Participants;
-    mapping(address=>address) liveContracts;
+    mapping(address=>address) publishedContracts;
+    mapping(address=>Contractor) awardedContracts;
+    mapping(address=>Contractor) deadContracts;
 
     address public marketPublisher;
     Contract private contracts;
@@ -26,9 +35,9 @@ contract Market {
         Participants.push(agent);
     }
 
-    function addContract(uint _x, uint _y, uint _z) public {     //Add a contract to the market for auction
-        address newContract = new Contract(_x, _y, _z, msg.sender);
-        liveContracts[msg.sender] = newContract;
+    function addContract(uint _x, uint _y, uint _z, uint _liveFor) public {     //Add a contract to the market for auction
+        address newContract = new Contract(_x, _y, _z, msg.sender,_liveFor);
+        publishedContracts[msg.sender] = newContract;
     }
 
     function getContractAddress(address _contractOwner) view public returns (address){
@@ -40,8 +49,30 @@ contract Market {
           }
       }
       require(isParticipant);
-      return liveContracts[_contractOwner];
+      return publishedContracts[_contractOwner];
     }
+
+    function awardContract(address _to, address _contract, address _owner){
+      require(publishedContracts[_owner]!=0);
+
+      Contractor memory c = Contractor({
+        contractAdd: _contract,
+        contractor: _to,
+        status: false,
+        exists: true
+      });
+      awardedContracts[_owner]=c;
+      delete(publishedContracts[_owner]);
+    }
+
+    // function contractComplete() public {
+    //   require(awardedContracts[msg.sender].exists == true);
+    //   require(awardedContracts[msg.sender].status == false);
+    //
+    //   awardedContracts[msg.sender].status = true;
+    //   deadContracts[msg.sender] = awardedContracts[msg.sender];
+    //   delete(awardedContracts[msg.sender]);
+    // }
 }
 
 
@@ -57,6 +88,9 @@ contract Contract {
     address public lowestBidder;
     mapping(address=>uint) submittedBids;
 
+    uint public startTime;
+    uint public liveFor;
+    uint public endTime;
     bool public ended;
 
     address public Owner;
@@ -65,17 +99,27 @@ contract Contract {
     event newLowestBid(address bidder, uint amount);
     event contractAwarded(address winner, uint amount);
 
-    function Contract(uint _x, uint _y, uint _z, address _owner) public {
+    Market private market;
+
+    function Contract(uint _x, uint _y, uint _z, address _owner, uint _liveFor) public {
         Owner = _owner;
         var liveContract = contracts[Owner];
         liveContract.x = _x;
         liveContract.y = _y;
         liveContract.z = _z;
+
+        startTime = now;
+        liveFor = _liveFor;
+        endTime = startTime + liveFor;
     }
 
 
     function getContract() view public returns (uint, uint, uint){
         return (contracts[Owner].x, contracts[Owner].y, contracts[Owner].z);
+    }
+
+    function getContractAddress() view public returns(address){
+      return this;
     }
 
     function submitBid(uint v) public {
@@ -96,14 +140,21 @@ contract Contract {
 
     }
 
+    //For TESTING purposes ONLY, remove before deployment!
+    function moveTimeForward(uint s) public {
+        endTime = endTime - s;
+    }
+
     function auctionEnd() public {
         //set this to only be called by owner
         //setup a minimum live time for contract
         require(msg.sender == Owner);
         require(!ended, "Contract already awarded....");
+        require(endTime <= now);
 
         ended = true;
         emit contractAwarded(lowestBidder,lowestBid);
+        //market.awardContract(lowestBidder,this,Owner);
     }
 
 }
