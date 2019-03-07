@@ -1,10 +1,17 @@
 const assert = require('assert');
 const ganache = require('ganache-cli');
+//const HDWalletProvider = require('truffle-hdwallet-provider');
 const Web3 = require('web3');
 
-const options = {allowUnlimitedContractSize: true, gasLimit: 8000000};
+//const options = {allowUnlimitedContractSize: true, gasLimit: 8000000};
+//const web3 = new Web3(ganache.provider(options));
 
-const web3 = new Web3(ganache.provider(options));
+// const provider = new HDWalletProvider(
+//   'twice weather link runway caution parent action share woman toast afford hungry',
+//    'http://localhost:9545'
+// );
+
+const web3 = new Web3('http://localhost:9545');
 
 const compiledMarket = require('../ethereum/build/Market.json');
 const compiledContract = require('../ethereum/build/Contract.json');
@@ -63,7 +70,28 @@ describe('Market', () => {
     assert.ok(conAdd);
   });
 
-  //Add tests for mappings
+  it('records auctioneers who do not pay', async () =>{
+
+    await contract.methods.submitBid('2000000000000000000').send({
+      from: accounts[1],
+      gas: '1000000'
+    });
+
+    await new Promise(resolve=> {
+      console.log('waiting 4 seconds');
+      setTimeout(resolve,4001);
+    });
+
+    await contract.methods.auctionEnd().send({
+      from: accounts[0],
+      gas: '1000000'
+    });
+
+    await market.methods.reportNoPayment(account[0]).send({
+      from: accounts[1],
+      gas: '1000000'
+    });
+  }).timeout(5000);
 
 });
 
@@ -138,7 +166,12 @@ describe('Contract', () => {
       assert.equal(true, await contract.methods.ended().call());
     }).timeout(5000);
 
-    it('ensures the contract has been awarded', async () => {
+    it('Pays account what is owed', async () => {
+
+      await contract.methods.submitBid('2000000000000000000').send({
+        from: accounts[1],
+        gas: '1000000'
+      });
 
       await new Promise(resolve=> {
         console.log('waiting 4 seconds');
@@ -149,9 +182,12 @@ describe('Contract', () => {
         from: accounts[0],
         gas: '1000000'
       });
-      console.log(accounts[1]);
-      const contractAward = await market.methods.publishedContracts(accounts[0]);
-      console.log(contractAward);
-      //assert.equal(0,contractAward);
+
+      await contract.methods.payBidder().send({
+        from: accounts[0],
+        value: web3.utils.toWei('2', 'ether'),
+        gas: '1000000'
+      });
+      //No assertion - check GUI
     }).timeout(5000);
 });

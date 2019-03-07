@@ -14,6 +14,8 @@ contract Market {
     address public marketPublisher;
     address[] public badPayer;
 
+    event didNotPay(address bidder);
+
     function Market() public {
         marketPublisher = msg.sender;
     }
@@ -45,7 +47,7 @@ contract Market {
     function contractComplete(address _contractOwner) public {
       require(awardedContracts[_contractOwner].exists == true);
       require(awardedContracts[_contractOwner].status == false);
-      awardedContracts[_contractOwner].status = false;
+      awardedContracts[_contractOwner].exists = false;
       awardedContracts[_contractOwner].status = true;
       deadContracts[_contractOwner] = awardedContracts[_contractOwner];
       delete(awardedContracts[_contractOwner]);
@@ -53,7 +55,7 @@ contract Market {
 
     function reportNoPayment(address _owner) public {
         require(awardedContracts[_owner].status != true);
-        if(msg.sender == awardedContracts[_owner].contractAdd) revert();
+        if(msg.sender != awardedContracts[_owner].contractor) revert();
         badPayer.push(_owner);
     }
 }
