@@ -11,15 +11,14 @@ contract Market {
     mapping(address=>address) public publishedContracts;
     mapping(address=>Contractor) public awardedContracts;
     mapping(address=>Contractor) public deadContracts;
-
     address public marketPublisher;
+    address[] public badPayer;
 
     function Market() public {
         marketPublisher = msg.sender;
     }
 
     function addContract(uint _x, uint _y, uint _z, uint _liveFor) public {     //Add a contract to the market for auction
-        require(publishedContracts[msg.sender]==0);
         address newContract = new Contract(_x, _y, _z, msg.sender,_liveFor,this);
         publishedContracts[msg.sender] = newContract;
     }
@@ -28,7 +27,7 @@ contract Market {
       return publishedContracts[_contractOwner];
     }
 
-    function awardContract(address _to, address _contract, address _owner) payable {
+    function awardContract(address _to, address _contract, address _owner) public {
       require(publishedContracts[_owner]!=0);
 
       Contractor memory c = Contractor({
@@ -36,20 +35,26 @@ contract Market {
         contractor: _to,
         status: false,
         exists: true
-
       });
 
       awardedContracts[_owner]=c;
       delete(publishedContracts[_owner]);
     }
 
-    function contractComplete() public {
-      require(awardedContracts[msg.sender].exists == true);
-      require(awardedContracts[msg.sender].status == false);
+//Vunerable to being called without contractor being paid
+    function contractComplete(address _contractOwner) public {
+      require(awardedContracts[_contractOwner].exists == true);
+      require(awardedContracts[_contractOwner].status == false);
+      awardedContracts[_contractOwner].status = false;
+      awardedContracts[_contractOwner].status = true;
+      deadContracts[_contractOwner] = awardedContracts[_contractOwner];
+      delete(awardedContracts[_contractOwner]);
+    }
 
-      awardedContracts[msg.sender].status = true;
-      deadContracts[msg.sender] = awardedContracts[msg.sender];
-      delete(awardedContracts[msg.sender]);
+    function reportNoPayment(address _owner) public {
+        require(awardedContracts[_owner].status != true);
+        if(msg.sender == awardedContracts[_owner].contractAdd) revert();
+        badPayer.push(_owner);
     }
 }
 
@@ -74,6 +79,7 @@ contract Contract {
     address public Owner;
     address public contractAdd;
     address public marketAdd;
+    Market public market;
     mapping (address => contractStructure) private contracts;
 
     event newLowestBid(address bidder, uint amount);
@@ -87,10 +93,10 @@ contract Contract {
         liveContract.x = _x;
         liveContract.y = _y;
         liveContract.z = _z;
-
         startTime = now;
         liveFor = _liveFor;
         endTime = startTime + liveFor;
+        market = Market(marketAdd);
     }
 
 
@@ -103,7 +109,6 @@ contract Contract {
     }
 
     function submitBid(uint v) public {
-
         //make sure bid beats current lowest
         if(lowestBid > 0) { require(v < lowestBid); }
         //make sure bid is greater than 0
@@ -111,9 +116,7 @@ contract Contract {
         //make sure owner doesn't bid on own contract
         require(msg.sender != Owner, "Owner cannot bid on contract");
         require(!ended, "Contract already awarded....");
-
         submittedBids[msg.sender] = v;
-
         lowestBid = v;
         lowestBidder = msg.sender;
         emit newLowestBid(lowestBidder, lowestBid);
@@ -121,16 +124,19 @@ contract Contract {
     }
 
     function auctionEnd() public {
-        //set this to only be called by owner
-        //setup a minimum live time for contract
         require(msg.sender == Owner);
         require(!ended, "Contract already awarded....");
         require(endTime <= now);
-
         ended = true;
         emit contractAwarded(lowestBidder,lowestBid);
-        Market market = Market(marketAdd);
         market.awardContract(lowestBidder,contractAdd,Owner);
+    }
+
+    function payBidder() payable public {
+        require(msg.sender == Owner);
+        if(msg.value != lowestBid) revert();
+        market.contractComplete(msg.sender);
+        selfdestruct(lowestBidder);
     }
 
 }

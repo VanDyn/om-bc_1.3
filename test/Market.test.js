@@ -1,7 +1,10 @@
 const assert = require('assert');
 const ganache = require('ganache-cli');
 const Web3 = require('web3');
-const web3 = new Web3(ganache.provider());
+
+const options = {allowUnlimitedContractSize: true, gasLimit: 8000000};
+
+const web3 = new Web3(ganache.provider(options));
 
 const compiledMarket = require('../ethereum/build/Market.json');
 const compiledContract = require('../ethereum/build/Contract.json');
@@ -19,7 +22,7 @@ beforeEach(async () => {
 //deploy market contract
   market = await new web3.eth.Contract(JSON.parse(compiledMarket.interface))
   .deploy({data: compiledMarket.bytecode})
-  .send({ from: accounts[0], gas: '1000000'});
+  .send({ from: accounts[0], gas: '4000000'});
 
   marketAddress = market.options.address;
 
@@ -128,12 +131,27 @@ describe('Contract', () => {
         setTimeout(resolve,4001);
       });
 
-
-
       await contract.methods.auctionEnd().send({
         from: accounts[0],
         gas: '1000000'
       });
       assert.equal(true, await contract.methods.ended().call());
+    }).timeout(5000);
+
+    it('ensures the contract has been awarded', async () => {
+
+      await new Promise(resolve=> {
+        console.log('waiting 4 seconds');
+        setTimeout(resolve,4001);
+      });
+
+      await contract.methods.auctionEnd().send({
+        from: accounts[0],
+        gas: '1000000'
+      });
+      console.log(accounts[1]);
+      const contractAward = await market.methods.publishedContracts(accounts[0]);
+      console.log(contractAward);
+      //assert.equal(0,contractAward);
     }).timeout(5000);
 });
