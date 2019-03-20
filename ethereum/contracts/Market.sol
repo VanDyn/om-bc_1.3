@@ -1,6 +1,6 @@
 pragma solidity ^0.4.22;
 contract Market {
-
+    //specifies the structure of the contractor carrying out task
     struct Contractor {
       address contractAdd;
       address contractor;
@@ -8,27 +8,30 @@ contract Market {
       bool exists;
     }
 
+    //publishedContracts are unawarded contracts
     mapping(address=>address) public publishedContracts;
+    //awardedContracts store the contracts underway
     mapping(address=>Contractor) public awardedContracts;
+    //Dead contracts are unauctioned or complete
     mapping(address=>Contractor) public deadContracts;
     address public marketPublisher;
     address[] public badPayer;
-
+    //Logs when an auctioneer refuses to pay
     event didNotPay(address bidder);
 
     function Market() public {
         marketPublisher = msg.sender;
     }
-
+    //Deploy a new job contract
     function addContract(uint _x, uint _y, uint _z, uint _liveFor) public {     //Add a contract to the market for auction
         address newContract = new Contract(_x, _y, _z, msg.sender,_liveFor,this);
         publishedContracts[msg.sender] = newContract;
     }
-
+    //Retreive contract address by specifying who published it
     function getContractAddress(address _contractOwner) view public returns (address){
       return publishedContracts[_contractOwner];
     }
-
+    //Award the contract to lowest bidder
     function awardContract(address _to, address _contract, address _owner) public {
       require(publishedContracts[_owner]!=0);
 
@@ -39,30 +42,30 @@ contract Market {
         exists: true
       });
 
-      awardedContracts[_owner]=c;
+      awardedContracts[_contract]=c;
       delete(publishedContracts[_owner]);
     }
 
 //Vunerable to being called without contractor being paid
-    function contractComplete(address _contractOwner) public {
-      require(awardedContracts[_contractOwner].exists == true);
-      require(awardedContracts[_contractOwner].status == false);
-      awardedContracts[_contractOwner].exists = false;
-      awardedContracts[_contractOwner].status = true;
-      deadContracts[_contractOwner] = awardedContracts[_contractOwner];
-      delete(awardedContracts[_contractOwner]);
+    function contractComplete(address _contract) public {
+      // require(awardedContracts[_contract].exists == true);
+      // require(awardedContracts[_contract].status == false);
+      // awardedContracts[_contract].exists = false;
+      // awardedContracts[_contract].status = true;
+      deadContracts[_contract] = awardedContracts[_contract];
+      delete(awardedContracts[_contract]);
     }
-
+//Auctioneers who refuse or don't apy can be reported
     function reportNoPayment(address _owner) public {
         require(awardedContracts[_owner].status != true);
-        if(msg.sender != awardedContracts[_owner].contractor) revert();
         badPayer.push(_owner);
+        emit didNotPay(_owner);
     }
 }
 
 
 contract Contract {
-
+//Define what a job Contract looks like here
     struct contractStructure {
         uint x;
         uint y;
@@ -74,7 +77,7 @@ contract Contract {
     mapping(address=>uint) submittedBids;
 
     uint public startTime;
-    uint public liveFor;
+    uint public liveFor; //Specifies the minimum time the contract will be auctioned for
     uint public endTime;
     bool public ended;
 
@@ -101,15 +104,15 @@ contract Contract {
         market = Market(marketAdd);
     }
 
-
+//return details of contrat structure
     function getContract() view public returns (uint, uint, uint){
         return (contracts[Owner].x, contracts[Owner].y, contracts[Owner].z);
     }
-
+//return the address this contract is stored at
     function getContractAddress() view public returns(address){
       return this;
     }
-
+//allow participants to submit a bid to win the contract
     function submitBid(uint v) public {
         //make sure bid beats current lowest
         if(lowestBid > 0) { require(v < lowestBid); }
@@ -124,7 +127,7 @@ contract Contract {
         emit newLowestBid(lowestBidder, lowestBid);
 
     }
-
+//Close the auction
     function auctionEnd() public {
         require(msg.sender == Owner);
         require(!ended, "Contract already awarded....");
@@ -133,11 +136,11 @@ contract Contract {
         emit contractAwarded(lowestBidder,lowestBid);
         market.awardContract(lowestBidder,contractAdd,Owner);
     }
-
+//Allow the auctioneer to pay the contractor
     function payBidder() payable public {
         require(msg.sender == Owner);
         if(msg.value != lowestBid) revert();
-        market.contractComplete(msg.sender);
+        market.contractComplete(contractAdd);
         selfdestruct(lowestBidder);
     }
 

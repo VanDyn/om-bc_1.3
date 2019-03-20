@@ -1,18 +1,9 @@
 const assert = require('assert');
 const ganache = require('ganache-cli');
-//const HDWalletProvider = require('truffle-hdwallet-provider');
 const Web3 = require('web3');
-
-//const options = {allowUnlimitedContractSize: true, gasLimit: 8000000};
-//const web3 = new Web3(ganache.provider(options));
-
-// const provider = new HDWalletProvider(
-//   'twice weather link runway caution parent action share woman toast afford hungry',
-//    'http://localhost:9545'
-// );
-
+//Required to point to BC. For a private blockchain last 4 digits are port number
 const web3 = new Web3('http://localhost:9545');
-
+//Require contract bytecode and ABI
 const compiledMarket = require('../ethereum/build/Market.json');
 const compiledContract = require('../ethereum/build/Contract.json');
 
@@ -70,6 +61,7 @@ describe('Market', () => {
     assert.ok(conAdd);
   });
 
+  //Check auctioneers who refuse to pay can be reported and recorded
   it('records auctioneers who do not pay', async () =>{
 
     await contract.methods.submitBid('2000000000000000000').send({
@@ -87,10 +79,12 @@ describe('Market', () => {
       gas: '1000000'
     });
 
-    await market.methods.reportNoPayment(account[0]).send({
+    await market.methods.reportNoPayment(accounts[0]).send({
       from: accounts[1],
       gas: '1000000'
     });
+
+    assert.equal(accounts[0], await market.methods.badPayer(0).call());
   }).timeout(5000);
 
 });
@@ -101,7 +95,7 @@ describe('Contract', () => {
   it('deploys a contract', () => {
     assert.ok(contract.options.address);
   });
-
+  //Ensure owner cannot bid on own contract
   it('does not let owner bid on own contract', async () => {
     let err = null;
     //throw error if owner bids
@@ -117,6 +111,7 @@ describe('Contract', () => {
     assert.ok(err instanceof Error);
   });
 
+  //Make sure contract is accepting lowest bid
   it('allows accounts to submit bids and accepts lowest', async () => {
     await contract.methods.submitBid('2').send({
       from: accounts[1],
@@ -128,6 +123,17 @@ describe('Contract', () => {
     });
     const lowestBid = await contract.methods.lowestBid().call();
     assert.equal('1', lowestBid);
+    });
+
+    //Measures and prints how long it takes to submit a bid
+    it('Measures how long it takes to submit one bid', async () => {
+      console.time('time:');
+      await contract.methods.submitBid('2').send({
+        from: accounts[1],
+        gas: '1000000'
+      });
+      console.timeEnd('time:');
+
     });
 
     //end auction
@@ -165,7 +171,7 @@ describe('Contract', () => {
       });
       assert.equal(true, await contract.methods.ended().call());
     }).timeout(5000);
-
+    //Check payment system
     it('Pays account what is owed', async () => {
 
       await contract.methods.submitBid('2000000000000000000').send({
@@ -190,4 +196,28 @@ describe('Contract', () => {
       });
       //No assertion - check GUI
     }).timeout(5000);
+});
+
+describe('Operational sequence', async() =>{
+  it('measures how long bidding takes', async () => {
+    console.time("Auction takes")
+    await contract.methods.submitBid('2000000000000000000').send({
+      from: accounts[1],
+      gas: '1000000'
+    });
+
+    await new Promise(resolve=> {
+      console.log('waiting 4 seconds');
+      setTimeout(resolve,4001);
+    });
+
+    await contract.methods.auctionEnd().send({
+      from: accounts[0],
+      gas: '1000000'
+    });
+    console.timeEnd("Auction takes");
+
+
+
+  }).timeout(5000);
 });
